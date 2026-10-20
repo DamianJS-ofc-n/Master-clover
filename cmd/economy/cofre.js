@@ -1,0 +1,3 @@
+import { ensureDB, canUse, setCooldown, formatTime, comicBox, isRegistered, COIN, formatMoney } from '../../core/economy.js'
+export const handler={}; handler.name='cofre'; handler.category='Economy'
+handler.exec=async(sock,m)=>{let j=m.key.remoteJid,w=m.key.participant||m.participant||m.key.remoteJid;if(!isRegistered(w))return sock.sendMessage(j,{text:'✳️ .reg primero'},{quoted:m});let cd=canUse(w,'cofre',30*60*1000);if(!cd.ok)return sock.sendMessage(j,{text:`🎁 ${ensureDB(w).name} espera ${formatTime(cd.left)}`},{quoted:m});let e=ensureDB(w);let p=Math.floor(Math.random()*1000)+300;e.money+=p;setCooldown(w,'cofre');global.saveDB?.();await sock.sendMessage(j,{text:comicBox(`🎁 ${e.name} encontró un cofre con ${formatMoney(p)} ${COIN}`)},{quoted:m})}

@@ -1,0 +1,3 @@
+import { ensureDB, canUse, setCooldown, formatTime, comicBox, isRegistered } from '../../core/economy.js'
+export const handler={}; handler.name='pescar'; handler.category='Economy'
+handler.exec=async(sock,m)=>{let j=m.key.remoteJid,w=m.key.participant||m.participant||m.key.remoteJid;if(!isRegistered(w))return sock.sendMessage(j,{text:'✳️ .reg primero'},{quoted:m});let cd=canUse(w,'pescar',3*60*1000);if(!cd.ok)return sock.sendMessage(j,{text:`🎣 ${ensureDB(w).name} espera ${formatTime(cd.left)}`},{quoted:m});let e=ensureDB(w);let f=Math.floor(Math.random()*3)+1;e.inv.pez+=f;setCooldown(w,'pescar');global.saveDB?.();await sock.sendMessage(j,{text:comicBox(`🎣 ${e.name} pescó ${f} peces en el río`)},{quoted:m})}

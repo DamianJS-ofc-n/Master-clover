@@ -1,0 +1,3 @@
+import { ensureDB, comicBox, isRegistered, COIN, formatMoney } from '../../core/economy.js'
+export const handler={}; handler.name='defensa'; handler.alias=['defense','escudo']; handler.category='Economy'
+handler.exec=async(sock,m)=>{let j=m.key.remoteJid,w=m.key.participant||m.participant||m.key.remoteJid;if(!isRegistered(w))return sock.sendMessage(j,{text:'✳️ .reg primero'},{quoted:m});let e=ensureDB(w);let cost=500;if(e.money<cost)return sock.sendMessage(j,{text:`❌ ${e.name} necesitas ${formatMoney(cost)} ${COIN} para mejorar defensa`},{quoted:m});e.money-=cost;e.defensa+=3;global.saveDB?.();await sock.sendMessage(j,{text:comicBox(`🛡️ ${e.name} compró una armadura por ${formatMoney(cost)} ${COIN} y ahora tiene ${e.defensa} de defensa`)},{quoted:m})}

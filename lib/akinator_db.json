@@ -1,0 +1,94 @@
+[
+  {
+    "name": "Messi",
+    "desc": "Futbolista",
+    "tags": [
+      "real",
+      "hombre",
+      "vivo",
+      "famoso",
+      "deporte",
+      "latino",
+      "argentina"
+    ]
+  },
+  {
+    "name": "Ibai",
+    "desc": "Streamer",
+    "tags": [
+      "real",
+      "hombre",
+      "vivo",
+      "famoso",
+      "internet",
+      "joven"
+    ]
+  },
+  {
+    "name": "Miku",
+    "desc": "Vocaloid",
+    "tags": [
+      "mujer",
+      "ficticio",
+      "musica",
+      "anime",
+      "famoso"
+    ]
+  },
+  {
+    "name": "Goku",
+    "desc": "Saiyajin",
+    "tags": [
+      "hombre",
+      "ficticio",
+      "anime",
+      "famoso"
+    ]
+  },
+  {
+    "name": "Ai Hoshino",
+    "desc": "Aprendido",
+    "tags": [
+      "mujer",
+      "famoso",
+      "internet",
+      "musica",
+      "anime",
+      "ficticio",
+      "joven"
+    ]
+  },
+  {
+    "name": "Sayori",
+    "desc": "Aprendido",
+    "tags": [
+      "mujer",
+      "vivo",
+      "internet",
+      "anime",
+      "ficticio",
+      "joven"
+    ]
+  },
+  {
+    "name": "litle sussie (protagonista de la canción litle sussie de Michael Jackson del álbum HIStory)",
+    "desc": "Aprendido",
+    "tags": [
+      "real",
+      "mujer",
+      "ficticio",
+      "joven"
+    ]
+  },
+  {
+    "name": "Leon a Kennedy",
+    "desc": "Aprendido",
+    "tags": [
+      "vivo",
+      "famoso",
+      "internet",
+      "anime",
+      "ficticio"
+    ]
+  }
+]
