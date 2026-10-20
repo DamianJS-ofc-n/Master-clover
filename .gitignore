@@ -1,0 +1,12 @@
+node_modules
+.npm
+.pnpm
+.cache
+tmp
+sessions
+auth
+db/*.json
+db/auth
+*.log
+.DS_Store
+baileys_store
