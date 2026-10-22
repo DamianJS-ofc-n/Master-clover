@@ -1,3 +1,4 @@
+import { isOwnerCheck } from '../../lib/isOwner.js'
 import { execSync } from 'child_process'
 import fs from 'fs'
 export const handler = {}
@@ -18,6 +19,13 @@ function saveToken(token){
  fs.writeFileSync('./db/github.json', JSON.stringify({ token, savedAt: Date.now() }))
 }
 handler.exec = async (sock, m, args) => {
+ // === OWNER CHECK INDEPENDIENTE DE MAIN ===
+ let senderRaw = m.key?.participant || m.key?.remoteJid || ''
+ let senderClean = senderRaw.split('@')[0].split(':')[0].replace(/\D/g,'')
+ // intenta resolver si viene args extra
+ let senderResolved = args?.__senderResolved || senderClean
+ if(!isOwnerCheck(senderRaw, senderResolved, senderClean) && !m.key?.fromMe) return
+
  const jid = m.key.remoteJid
  if(!fs.existsSync('.git')) return await sock.sendMessage(jid, { text: `❌ No es repo git` }, { quoted: m })
  if(args[0] === 'token' || args[0] === '--token'){

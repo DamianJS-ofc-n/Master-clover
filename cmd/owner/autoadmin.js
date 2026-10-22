@@ -1,4 +1,5 @@
 import config from '../../config.js'
+import { isOwnerCheck } from '../../lib/isOwner.js'
 
 export const handler = {}
 handler.name = 'autoadmin'

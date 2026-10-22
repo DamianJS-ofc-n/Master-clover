@@ -8,15 +8,15 @@ handler.exec = async (sock, m, args) => {
  if (!jid.endsWith('@g.us')) return
 
  let metadata = await sock.groupMetadata(jid)
- let participants = metadata.participants
- let sender = m.key.participant || m.participant || ''
-
- // check sender admin por LID
- let senderP = participants.find(p => p.id === sender)
+ 
+ let senderIds = [m.key.participant, m.key.participantAlt, m.participant, m.sender].filter(Boolean)
+ let senderP = metadata.participants.find(p => 
+ senderIds.includes(p.id) || senderIds.includes(p.lid) || senderIds.includes(p.phoneNumber)
+ )
  let isSenderAdmin = senderP && (senderP.admin === 'admin' || senderP.admin === 'superadmin')
 
  if (!isSenderAdmin) {
- return sock.sendMessage(jid, { text: `《✧》 No eres admin. Tu ID: ${sender}\nAdmin detectado: ${senderP?.admin || 'null'}` }, { quoted: m })
+ return sock.sendMessage(jid, { text: `《✧》 No eres admin.` }, { quoted: m })
  }
 
  let info = m.message?.extendedTextMessage?.contextInfo || {}
@@ -28,13 +28,10 @@ handler.exec = async (sock, m, args) => {
  }
  if (!who) return sock.sendMessage(jid, { text: 'Etiqueta a alguien' }, { quoted: m })
 
- // si es LID lo dejamos como viene
  try {
  await sock.groupParticipantsUpdate(jid, [who], 'remove')
  await sock.sendMessage(jid, { text: `✐ Expulsado @${who.split('@')[0]}`, mentions: [who] }, { quoted: m })
  } catch(e){
- console.log(e)
- // si falla por no ser admin, ahí si avisamos
- await sock.sendMessage(jid, { text: `❌ No pude expulsar. Error: ${e.message}\n\nSi dice not-authorized es que el bot no es admin o el cache está viejo. Saca al bot y vuelve a meterlo como admin.` }, { quoted: m })
+ await sock.sendMessage(jid, { text: `❌ No pude expulsar: ${e.message}` }, { quoted: m })
  }
 }

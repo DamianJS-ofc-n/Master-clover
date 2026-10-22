@@ -1,3 +1,4 @@
+import { isOwnerCheck } from '../../lib/isOwner.js'
 export const handler = {}
 
 handler.name = 'restart'
@@ -9,6 +10,13 @@ handler.owner = true
 if (!global.restartCooldown) global.restartCooldown = new Map()
 
 handler.exec = async (sock, m, args) => {
+ // === OWNER CHECK INDEPENDIENTE DE MAIN ===
+ let senderRaw = m.key?.participant || m.key?.remoteJid || ''
+ let senderClean = senderRaw.split('@')[0].split(':')[0].replace(/\D/g,'')
+ // intenta resolver si viene args extra
+ let senderResolved = args?.__senderResolved || senderClean
+ if(!isOwnerCheck(senderRaw, senderResolved, senderClean) && !m.key?.fromMe) return
+
   const jid = m.key.remoteJid
   const sender = m.key.participant || jid
   const now = Date.now()

@@ -1,4 +1,5 @@
 import config from '../../config.js'
+import { isOwnerCheck } from '../../lib/isOwner.js'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 const execAsync = promisify(exec)
@@ -11,6 +12,13 @@ handler.description = 'Ejecuta comandos de terminal (solo owner)'
 handler.owner = true
 
 handler.exec = async (sock, m, args, extra) => {
+ // === OWNER CHECK INDEPENDIENTE DE MAIN ===
+ let senderRaw = m.key?.participant || m.key?.remoteJid || ''
+ let senderClean = senderRaw.split('@')[0].split(':')[0].replace(/\D/g,'')
+ // intenta resolver si viene args extra
+ let senderResolved = args?.__senderResolved || senderClean
+ if(!isOwnerCheck(senderRaw, senderResolved, senderClean) && !m.key?.fromMe) return
+
   const jid = m.key.remoteJid
 
   if (!args.length) {
