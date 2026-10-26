@@ -1,26 +1,19 @@
-import fs from 'fs'
+import config from '../../config.js'
 export const handler = {}
 handler.name = 'id'
-handler.alias = ['myid', 'lid']
+handler.alias = ['jid','lid']
 handler.category = 'owner'
+handler.owner = true
+function getOwners(){return (config?.bot?.owner||[]).map(n=>n.toString().split('@')[0].replace(/\D/g,'')).filter(Boolean)}
+function isOwnerDirect(m){let raw=m.key?.participant||m.key?.remoteJid||'';let c=raw.split('@')[0].split(':')[0].replace(/\D/g,'');if(m.key?.fromMe)return true;return getOwners().includes(c)||config.bot.owner.includes(raw)}
 handler.exec = async (sock, m) => {
- let jid = m.key.remoteJid
- let info = `
-*SENDER DEBUG*
-
-m.sender: ${m.sender}
-m.key.participant: ${m.key?.participant}
-m.key.participantAlt: ${m.key?.participantAlt}
-m.participant: ${m.participant}
-m.key.remoteJid: ${m.key?.remoteJid}
-fromMe: ${m.key?.fromMe}
-isOwner flag: ${m.isOwner}
-
---- config.js raw ---
-${(() => { try { return fs.readFileSync('config.js','utf-8').slice(0,500) } catch(e){ return e.message } })()}
-
---- global.owner ---
-${JSON.stringify(global.owner || [])}
-`
- await sock.sendMessage(jid, { text: info }, { quoted: m })
+ if(!isOwnerDirect(m)) return await sock.sendMessage(m.key.remoteJid, { text: '⚠️ Solo owners pueden usar esto.' }, { quoted: m })
+ let txt = `*ID INFO*\n\n`
+ txt += `RemoteJid: ${m.key.remoteJid}\n`
+ txt += `Participant: ${m.key.participant || 'N/A'}\n`
+ txt += `ParticipantAlt: ${m.key.participantAlt || 'N/A'}\n`
+ txt += `LID: ${m.key.remoteJidAlt || 'N/A'}\n`
+ txt += `FromMe: ${m.key.fromMe}\n`
+ await sock.sendMessage(m.key.remoteJid, { text: txt }, { quoted: m })
 }
+export default handler

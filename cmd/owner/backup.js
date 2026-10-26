@@ -1,13 +1,13 @@
 import config from '../../config.js'
-import { isOwnerCheck } from '../../lib/isOwner.js'
 import fs from 'fs'
 import path from 'path'
-
 export const handler = {}
 handler.name = 'backup'
 handler.alias = ['bk','respaldo','save']
 handler.category = 'owner'
 handler.owner = true
+function getOwners(){return (config?.bot?.owner||[]).map(n=>n.toString().split('@')[0].replace(/\D/g,'')).filter(Boolean)}
+function isOwnerDirect(m){let raw=m.key?.participant||m.key?.remoteJid||'';let c=raw.split('@')[0].split(':')[0].replace(/\D/g,'');if(m.key?.fromMe)return true;return getOwners().includes(c)||config.bot.owner.includes(raw)}
 
 const crcTable = new Uint32Array(256)
 for(let n=0;n<256;n++){ let c=n; for(let i=0;i<8;i++) c=(c&1)?(0xedb88320^(c>>>1)):(c>>>1); crcTable[n]=c>>>0 }
@@ -24,7 +24,6 @@ function makeZip(filesMap){
  const end=Buffer.alloc(22); end.writeUInt32LE(0x06054b50,0); end.writeUInt16LE(Object.keys(filesMap).length,8); end.writeUInt16LE(Object.keys(filesMap).length,10); end.writeUInt32LE(centralSize,12); end.writeUInt32LE(offset,16)
  return Buffer.concat([...chunks,...central,end])
 }
-
 function getAllFiles(dir, fileList=[], baseDir=dir){
  if(!fs.existsSync(dir)) return fileList
  if(fs.statSync(dir).isFile()){ fileList.push({full:dir, rel:path.relative(baseDir,dir)}); return fileList }
@@ -39,30 +38,23 @@ function getAllFiles(dir, fileList=[], baseDir=dir){
  }
  return fileList
 }
-
 handler.exec = async (...args) => {
  let sock,m,a
  if(args[0]?.key){ m=args[0]; sock=args[1]?.conn||global.conn; a=args[1]?.args||[] }
  else { sock=args[0]; m=args[1]; a=args[2]||[] }
+ if(!isOwnerDirect(m)) return await sock.sendMessage(m.key.remoteJid, { text: '⚠️ Solo owners pueden usar esto.' }, { quoted: m })
  const from=m.key.remoteJid
  const textArgs=a.join(' ').trim()
-
  let targets=!textArgs?['.']: textArgs.toLowerCase()==='all'||textArgs.toLowerCase()==='todo'?['all'] : textArgs.split(/[\s,\/]+/).map(s=>s.trim()).filter(Boolean)
-
  const baseDir=process.cwd()
  const tmpDir=path.join(baseDir,'storage','temp','backups')
  if(!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir,{recursive:true})
-
  for(const input of targets){
  try{
  let filesMap={}, zipName=''
  if(input==='all'){
- // PROTECCION: all ya no incluye node_modules
  const list=getAllFiles(baseDir)
- for(const f of list){
- if(f.rel.includes('storage/temp/backups')) continue
- try{ if(fs.statSync(f.full).size > 10*1024*1024) continue; filesMap[f.rel]=fs.readFileSync(f.full) }catch{}
- }
+ for(const f of list){ if(f.rel.includes('storage/temp/backups')) continue; try{ if(fs.statSync(f.full).size > 10*1024*1024) continue; filesMap[f.rel]=fs.readFileSync(f.full) }catch{} }
  zipName=`backup-ALL-${Date.now()}.zip`
  } else if(input==='.' || input==='full'){
  const list=getAllFiles(baseDir)
@@ -80,7 +72,7 @@ handler.exec = async (...args) => {
  }
  if(!Object.keys(filesMap).length){ await sock.sendMessage(from,{text:`❌ Vacío`},{quoted:m}); continue }
  const zipBuffer=makeZip(filesMap)
- if(zipBuffer.length > 90*1024*1024){ await sock.sendMessage(from,{text:`❌ Muy grande ${(zipBuffer.length/1024/1024).toFixed(1)}MB, max 90MB para WhatsApp`},{quoted:m}); continue }
+ if(zipBuffer.length > 90*1024*1024){ await sock.sendMessage(from,{text:`❌ Muy grande ${(zipBuffer.length/1024/1024).toFixed(1)}MB`},{quoted:m}); continue }
  const outPath=path.join(tmpDir,zipName)
  fs.writeFileSync(outPath,zipBuffer)
  await sock.sendMessage(from,{document:fs.readFileSync(outPath), mimetype:'application/zip', fileName:zipName, caption:`✅ ${input} | ${Object.keys(filesMap).length} archivos | ${(zipBuffer.length/1024/1024).toFixed(2)} MB`},{quoted:m})
@@ -88,3 +80,4 @@ handler.exec = async (...args) => {
  }catch(e){ await sock.sendMessage(from,{text:`❌ Error ${input}: ${e.message}`},{quoted:m}) }
  }
 }
+export default handler

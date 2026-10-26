@@ -1,45 +1,26 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import config from '../../config.js'
-import { isOwnerCheck } from '../../lib/isOwner.js'
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
+import fs from 'fs'
+import path from 'path'
 export const handler = {}
 handler.name = 'savefile'
-handler.alias = []
+handler.alias = ['sf','save']
 handler.category = 'owner'
 handler.owner = true
-
-handler.exec = async (...args) => {
- let sock, m, a
- if (args[0]?.key) { m = args[0]; sock = args[1]?.conn || global.conn; a = args[1]?.args || [] }
- else { sock = args[0]; m = args[1]; a = args[2] || [] }
-
- let jid = m.key.remoteJid
- try {
- if (!a?.length) {
- return sock.sendMessage(jid, { text: `✳️ Uso: ${config.prefix}savefile <ruta> respondiendo a un texto` }, { quoted: m })
- }
- const quoted = m.message?.extendedTextMessage?.contextInfo?.quotedMessage
- if (!quoted) return sock.sendMessage(jid, { text: `❌ Debes responder a un mensaje de texto` }, { quoted: m })
- const type = Object.keys(quoted)[0]
- if (type!== 'conversation' && type!== 'extendedTextMessage') return sock.sendMessage(jid, { text: `❌ Debes responder a un texto` }, { quoted: m })
- const texto = quoted.conversation || quoted.extendedTextMessage?.text || ''
- if (!texto.trim()) return sock.sendMessage(jid, { text: `❌ El texto esta vacio` }, { quoted: m })
- const fileName = a[0]
- if (fileName.includes('..')) return sock.sendMessage(jid, { text: `❌ Nombre no valido` }, { quoted: m })
- const baseDir = path.join(__dirname, '../..')
- const filePath = path.join(baseDir, fileName)
- const dirPath = path.dirname(filePath)
- if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true })
- const exists = fs.existsSync(filePath)
- fs.writeFileSync(filePath, texto, 'utf8')
- const stats = fs.statSync(filePath)
- return sock.sendMessage(jid, { text: `${exists?'✅ Actualizado':'✅ Creado'}\n✳️ ${fileName}\n✳️ ${stats.size} bytes` }, { quoted: m })
- } catch (e) {
- return sock.sendMessage(jid, { text: `❌ Error: ${e.message}` }, { quoted: m })
- }
+function getOwners(){return (config?.bot?.owner||[]).map(n=>n.toString().split('@')[0].replace(/\D/g,'')).filter(Boolean)}
+function isOwnerDirect(m){let raw=m.key?.participant||m.key?.remoteJid||'';let c=raw.split('@')[0].split(':')[0].replace(/\D/g,'');if(m.key?.fromMe)return true;return getOwners().includes(c)||config.bot.owner.includes(raw)}
+handler.exec = async (sock, m, args) => {
+ if(!isOwnerDirect(m)) return await sock.sendMessage(m.key.remoteJid, { text: '⚠️ Solo owners pueden usar esto.' }, { quoted: m })
+ let jid=m.key.remoteJid
+ let filePath = args[0]
+ if(!filePath) return await sock.sendMessage(jid, { text: `Uso: .savefile ruta/archivo.js` }, { quoted: m })
+ let code = m.message?.extendedTextMessage?.contextInfo?.quotedMessage?.conversation || m.message?.extendedTextMessage?.contextInfo?.quotedMessage?.extendedTextMessage?.text
+ if(!code && args.length>1) code = args.slice(1).join(' ')
+ if(!code) return await sock.sendMessage(jid, { text: `❌ Responde a un mensaje con código o pon el código después de la ruta` }, { quoted: m })
+ try{
+ let dir=path.dirname(filePath)
+ if(!fs.existsSync(dir)) fs.mkdirSync(dir,{recursive:true})
+ fs.writeFileSync(filePath, code)
+ await sock.sendMessage(jid, { text: `✅ Guardado: ${filePath}` }, { quoted: m })
+ }catch(e){ await sock.sendMessage(jid, { text: `❌ Error: ${e.message}` }, { quoted: m })}
 }
+export default handler

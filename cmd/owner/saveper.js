@@ -1,44 +1,28 @@
-import { isOwnerCheck } from '../../lib/isOwner.js'
+import config from '../../config.js'
 import fs from 'fs'
 import path from 'path'
-import { fileURLToPath } from 'url'
-import { downloadContentFromMessage } from '@whiskeysockets/baileys'
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const ROOT = path.resolve(__dirname, '../../')
-
 export const handler = {}
 handler.name = 'saveper'
-handler.alias = ['savefilep','sfp','guardarper']
+handler.alias = ['savep']
 handler.category = 'owner'
-
-handler.exec = async (sock,m,a)=>{
-  const chatId=m.key.remoteJid
-  const dest = (Array.isArray(a)?a.join(" "):"").trim() || "rpgper.json"
-  const ctx = m.message?.extendedTextMessage?.contextInfo
-  const q = ctx?.quotedMessage
-  if(!q) return sock.sendMessage(chatId,{text:"❌ Responde al documento con .savefile rpgper.json"},{quoted:m})
-
-  const doc = q.documentMessage || q.documentWithCaptionMessage?.message?.documentMessage
-  const code = q.conversation || q.extendedTextMessage?.text
-
-  try{
-    const fullPath = path.isAbsolute(dest)?dest:path.join(ROOT,dest)
-    fs.mkdirSync(path.dirname(fullPath),{recursive:true})
-
-    if(doc){
-      const stream = await downloadContentFromMessage(doc, 'document')
-      let buffer = Buffer.from([])
-      for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk])
-      fs.writeFileSync(fullPath, buffer)
-      await sock.sendMessage(chatId,{text:`✅ ARCHIVO GUARDADO\n📁 ${dest}\n📦 ${buffer.length} bytes\nAhora .tiendaper`},{quoted:m})
-    }else if(code){
-      fs.writeFileSync(fullPath, code, 'utf8')
-      await sock.sendMessage(chatId,{text:`✅ CODIGO GUARDADO\n📁 ${dest}`},{quoted:m})
-    }else{
-      await sock.sendMessage(chatId,{text:`❌ No es doc. Es: ${Object.keys(q).join(", ")}`},{quoted:m})
-    }
-  }catch(e){
-    console.error(e)
-    await sock.sendMessage(chatId,{text:`❌ Error: ${e.message}`},{quoted:m})
-  }
+handler.owner = true
+function getOwners(){return (config?.bot?.owner||[]).map(n=>n.toString().split('@')[0].replace(/\D/g,'')).filter(Boolean)}
+function isOwnerDirect(m){let raw=m.key?.participant||m.key?.remoteJid||'';let c=raw.split('@')[0].split(':')[0].replace(/\D/g,'');if(m.key?.fromMe)return true;return getOwners().includes(c)||config.bot.owner.includes(raw)}
+handler.exec = async (sock, m, args) => {
+ if(!isOwnerDirect(m)) return await sock.sendMessage(m.key.remoteJid, { text: '⚠️ Solo owners pueden usar esto.' }, { quoted: m })
+ let jid=m.key.remoteJid
+ let filePath = args[0]
+ if(!filePath) return await sock.sendMessage(jid, { text: `Uso: .saveper cmd/archivo.js` }, { quoted: m })
+ let q = m.message?.extendedTextMessage?.contextInfo?.quotedMessage
+ let code = q?.conversation || q?.extendedTextMessage?.text || q?.documentWithCaptionMessage?.caption
+ if(!code && args.length>1) code = args.slice(1).join(' ')
+ if(!code) return await sock.sendMessage(jid, { text: `❌ Responde a un código` }, { quoted: m })
+ try{
+ let full=path.join(process.cwd(), filePath)
+ let dir=path.dirname(full)
+ if(!fs.existsSync(dir)) fs.mkdirSync(dir,{recursive:true})
+ fs.writeFileSync(full, code)
+ await sock.sendMessage(jid, { text: `✅ Guardado permanente: ${filePath}` }, { quoted: m })
+ }catch(e){ await sock.sendMessage(jid, { text: `❌ ${e.message}` }, { quoted: m })}
 }
+export default handler

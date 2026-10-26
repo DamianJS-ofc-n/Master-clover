@@ -1,4 +1,4 @@
-import { isOwnerCheck } from '../../lib/isOwner.js'
+import config from '../../config.js'
 import { execSync } from 'child_process'
 import fs from 'fs'
 export const handler = {}
@@ -6,34 +6,23 @@ handler.name = 'updategithub'
 handler.alias = ['upgit','gitpush']
 handler.category = 'owner'
 handler.owner = true
-function exec(cmd){
- try{ return execSync(cmd, { encoding: 'utf-8', stdio: 'pipe', timeout: 40000 }).trim() }catch(e){ return (e.stdout?.toString() || '') + '\n' + (e.stderr?.toString() || e.message) }
-}
-function getToken(){
- if(process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN
- if(fs.existsSync('./db/github.json')){ try{ return JSON.parse(fs.readFileSync('./db/github.json','utf-8')).token }catch{} }
- return null
-}
-function saveToken(token){
- if(!fs.existsSync('./db')) fs.mkdirSync('./db',{recursive:true})
- fs.writeFileSync('./db/github.json', JSON.stringify({ token, savedAt: Date.now() }))
-}
-handler.exec = async (sock, m, args) => {
- // === OWNER CHECK INDEPENDIENTE DE MAIN ===
- let senderRaw = m.key?.participant || m.key?.remoteJid || ''
- let senderClean = senderRaw.split('@')[0].split(':')[0].replace(/\D/g,'')
- // intenta resolver si viene args extra
- let senderResolved = args?.__senderResolved || senderClean
- if(!isOwnerCheck(senderRaw, senderResolved, senderClean) && !m.key?.fromMe) return
 
+function getOwners(){return (config?.bot?.owner||[]).map(n=>n.toString().split('@')[0].replace(/\D/g,'')).filter(Boolean)}
+function isOwnerDirect(m){let raw=m.key?.participant||m.key?.remoteJid||'';let clean=raw.split('@')[0].split(':')[0].replace(/\D/g,'');if(m.key?.fromMe)return true;return getOwners().includes(clean)||config.bot.owner.includes(raw)}
+
+function exec(cmd){try{ return execSync(cmd, { encoding: 'utf-8', stdio: 'pipe', timeout: 40000 }).trim() }catch(e){ return (e.stdout?.toString() || '') + '\n' + (e.stderr?.toString() || e.message) }}
+function getToken(){if(process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;if(fs.existsSync('./db/github.json')){ try{ return JSON.parse(fs.readFileSync('./db/github.json','utf-8')).token }catch{} }return null}
+function saveToken(token){if(!fs.existsSync('./db')) fs.mkdirSync('./db',{recursive:true});fs.writeFileSync('./db/github.json', JSON.stringify({ token, savedAt: Date.now() }))}
+
+handler.exec = async (sock, m, args) => {
+ if(!isOwnerDirect(m)) return await sock.sendMessage(m.key.remoteJid, { text: '⚠️ Solo owners pueden usar esto.' }, { quoted: m })
  const jid = m.key.remoteJid
  if(!fs.existsSync('.git')) return await sock.sendMessage(jid, { text: `❌ No es repo git` }, { quoted: m })
  if(args[0] === 'token' || args[0] === '--token'){
  const t = args[1]
  if(!t) return await sock.sendMessage(jid, { text: getToken() ? `✅ Ya tienes token` : `❌ Usa: .updategithub token ghp_xxx` }, { quoted: m })
  if(!t.startsWith('ghp_') && !t.startsWith('github_pat_')) return await sock.sendMessage(jid, { text: `❌ Token invalido` }, { quoted: m })
- saveToken(t)
- return await sock.sendMessage(jid, { text: `✅ Token guardado` }, { quoted: m })
+ saveToken(t); return await sock.sendMessage(jid, { text: `✅ Token guardado` }, { quoted: m })
  }
  if(args.length === 0) return await sock.sendMessage(jid, { text: `Uso: .updategithub token ghp_xxx\n.updategithub cmd\n.updategithub cmd/socket` }, { quoted: m })
  let files = [], commitParts = []
@@ -48,18 +37,9 @@ handler.exec = async (sock, m, args) => {
  let remoteUrl = exec('git remote get-url origin')
  let token = getToken()
  let pushUrl = null
- if(token && remoteUrl.includes('github.com') && remoteUrl.startsWith('https://')){
- let clean = remoteUrl.replace('https://','').replace(/^.*@/,'')
- pushUrl = `https://${token}@${clean}`
- }
- exec(`git config user.email "bot@clover.com"`)
- exec(`git config user.name "Clover Bot"`)
- exec(`git add ${filesToAdd}`)
- exec(`git commit -m "${commitMsg.replace(/"/g,'\\"')}"`)
+ if(token && remoteUrl.includes('github.com') && remoteUrl.startsWith('https://')){let clean = remoteUrl.replace('https://','').replace(/^.*@/,'');pushUrl = `https://${token}@${clean}`}
+ exec(`git config user.email "bot@clover.com"`); exec(`git config user.name "Clover Bot"`); exec(`git add ${filesToAdd}`); exec(`git commit -m "${commitMsg.replace(/"/g,'\\"')}"`)
  let push = pushUrl ? exec(`git push ${pushUrl} ${branch} --force 2>&1`) : exec(`git push origin ${branch} --force 2>&1`)
- if(push.toLowerCase().includes('error') && !push.toLowerCase().includes('forced update')){
- await sock.sendMessage(jid, { text: `❌ Error:\n${push.slice(0,1000)}` }, { quoted: m })
- } else {
- await sock.sendMessage(jid, { text: `✅ Push ok con --force\n📦 ${files.join(', ')}\n📌 ${exec('git log -1 --oneline')}` }, { quoted: m })
- }
+ if(push.toLowerCase().includes('error') && !push.toLowerCase().includes('forced update')){await sock.sendMessage(jid, { text: `❌ Error:\n${push.slice(0,3500)}` }, { quoted: m })} else {await sock.sendMessage(jid, { text: `✅ Push ok con --force\n📦 ${files.join(', ')}\n📌 ${exec('git log -1 --oneline')}` }, { quoted: m })}
 }
+export default handler
