@@ -3,7 +3,7 @@ import makeWASocket, {
   DisconnectReason,
   Browsers,
   fetchLatestBaileysVersion
-} from '@whiskeysockets/baileys'
+} from 'WhiskeySockets-locosyasociados'
 import pino from 'pino'
 import { start, handleMessages, loadPlugins } from './main.js'
 import readline from 'readline'
