@@ -90,5 +90,24 @@
       "anime",
       "ficticio"
     ]
+  },
+  {
+    "name": "Pin",
+    "desc": "Aprendido",
+    "tags": [
+      "mujer",
+      "famoso",
+      "internet",
+      "ficticio"
+    ]
+  },
+  {
+    "name": "trucho",
+    "desc": "Aprendido",
+    "tags": [
+      "famoso",
+      "internet",
+      "ficticio"
+    ]
   }
 ]
