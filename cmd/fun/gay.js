@@ -1,4 +1,4 @@
-import { downloadMediaMessage } from '@whiskeysockets/baileys';
+import { downloadMediaMessage } from 'WhiskeySockets-locosyasociados';
 import axios from 'axios';
 import { createCanvas, loadImage } from 'canvas';
 

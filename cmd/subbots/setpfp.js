@@ -17,7 +17,7 @@ handler.exec = async (sock, m) => {
  let quoted = m.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage || m.message?.imageMessage
  if(!quoted) return await sock.sendMessage(jid, { text: `Responde a una imagen con .setpfp` }, { quoted: m })
  try{
- const { downloadMediaMessage } = await import('@whiskeysockets/baileys')
+ const { downloadMediaMessage } = await import('WhiskeySockets-locosyasociados')
  let buffer = await downloadMediaMessage(m, 'buffer', {}, { logger: undefined, reuploadRequest: targetSock.updateMediaMessage })
  await targetSock.updateProfilePicture(targetSock.user.id, buffer)
  await sock.sendMessage(jid, { text: `✅ Foto cambiada para +${targetNumber}` }, { quoted: m })

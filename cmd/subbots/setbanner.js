@@ -22,10 +22,10 @@ handler.exec = async (sock, m, args) => {
 
  try{
  if(m.message?.imageMessage){
- const {downloadMediaMessage} = await import('@whiskeysockets/baileys')
+ const {downloadMediaMessage} = await import('WhiskeySockets-locosyasociados')
  buffer = await downloadMediaMessage(m, 'buffer', {})
  } else if(m.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage){
- const {downloadMediaMessage} = await import('@whiskeysockets/baileys')
+ const {downloadMediaMessage} = await import('WhiskeySockets-locosyasociados')
  const qmsg = m.message.extendedTextMessage.contextInfo.quotedMessage
  const q = { message: qmsg, key: { remoteJid: jid, id: m.message.extendedTextMessage.contextInfo.stanzaId } }
  buffer = await downloadMediaMessage(q, 'buffer', {})

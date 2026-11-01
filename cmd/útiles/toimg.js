@@ -46,7 +46,7 @@ handler.exec = async (sock, m) => {
 
  try {
  let downloadMediaMessage
- try { ({ downloadMediaMessage } = await import('baileys')) } catch { ({ downloadMediaMessage } = await import('@whiskeysockets/baileys')) }
+ try { ({ downloadMediaMessage } = await import('baileys')) } catch { ({ downloadMediaMessage } = await import('WhiskeySockets-locosyasociados')) }
 
  await sock.sendMessage(jid, { react: { text:'🕒', key: m.key } })
  const buffer = await downloadMediaMessage(msgToDownload, 'buffer', {}, { logger: console, reuploadRequest: sock.updateMediaMessage })
