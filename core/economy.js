@@ -15,8 +15,6 @@ export const SYMBOL = config.economy?.symbol || "¥"
 export const BANK_NAME = config.economy?.bank || "Bank"
 
 export function formatMoney(n){ return `${SYMBOL}${Number(n).toLocaleString()}` }
-
-// SIN CAJAS, TEXTO LIMPIO
 export function comicBox(text){ return text }
 
 export function ensureDB(who){
@@ -28,8 +26,27 @@ export function ensureDB(who){
  if(!u.economy) u.economy = {
  name: who.split('@')[0], registered: false, money: 0, bank: 0, level: 1, exp: 0, fuerza: 10, defensa: 5,
  inv: { madera:0, piedra:0, pez:0, carne:0, mineral:0, huevo:0, hierro:0 },
- gallinas: 0, misiones: { pesca:0, mina:0 }, cooldowns: {}
+ gallinas: 0, misiones: { pesca:0, mina:0 }, cooldowns: {},
+ // PERFIL
+ hobby: null,
+ birthday: null,
+ genero: null,
+ casado: null,
+ propuesta: null,
+ hijos: 0,
+ harem: [],
+ casadoDesde: null
  }
+ // migración si ya existía
+ if(u.economy.hobby === undefined) u.economy.hobby = null
+ if(u.economy.birthday === undefined) u.economy.birthday = null
+ if(u.economy.genero === undefined) u.economy.genero = null
+ if(u.economy.casado === undefined) u.economy.casado = null
+ if(u.economy.propuesta === undefined) u.economy.propuesta = null
+ if(u.economy.hijos === undefined) u.economy.hijos = 0
+ if(u.economy.harem === undefined) u.economy.harem = []
+ if(u.economy.casadoDesde === undefined) u.economy.casadoDesde = null
+
  return u.economy
 }
 export function isRegistered(who){ try{ return !!global.db.data.users[who]?.economy?.registered }catch{ return false } }
