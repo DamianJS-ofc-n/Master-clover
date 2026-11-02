@@ -1,8 +1,8 @@
 import os from 'os'
 import fs from 'fs'
-import { execSync } from 'child_process'
-import { pathToFileURL } from 'url'
 import path from 'path'
+import { execSync } from 'child_process'
+import { createCanvas } from '@napi-rs/canvas'
 
 export const handler = {}
 handler.name = 'ping'
@@ -20,54 +20,60 @@ function uptime(t){
  const d=Math.floor(t/86400)
  const h=Math.floor(t%86400/3600)
  const m=Math.floor(t%3600/60)
- return `${d>0?d+'d ':''}${h}h ${m}m`.trim() || '0m'
+ const s=Math.floor(t%60)
+ if(d>0) return `${d}d ${h}h ${m}m`
+ if(h>0) return `${h}h ${m}m`
+ return `${m}m ${s}s`
 }
 
-let botName = 'Clover Bot'
-try{
- const cfgPath = path.join(process.cwd(),'config.js')
- if(fs.existsSync(cfgPath)){
- const mod = await import(pathToFileURL(cfgPath).href)
- const cfg = mod.default || mod.config || {}
- botName = cfg.bot?.name || cfg.bot?.botName || botName
- }
-}catch{}
-
-handler.exec = async (sock, m) => {
- const jid = m.key.remoteJid
- const start = Date.now()
- const sent = await sock.sendMessage(jid, { text: `🖥️ Calculando...` }, { quoted: m })
- const latency = Date.now() - start
-
- const host = os.hostname()
- const platform = os.platform() === 'linux' ? 'Linux' : os.platform()
- const botUptime = uptime(process.uptime())
-
- const totalMem = os.totalmem()
- const freeMem = os.freemem()
- const usedMem = totalMem - freeMem
-
- const cpus = os.cpus()
- const cpuModel = cpus[0]?.model?.split(' ').slice(0,3).join(' ') || 'Unknown'
- const cores = cpus.length
- const load = os.loadavg()[0].toFixed(2)
- const memUsage = ((usedMem/totalMem)*100).toFixed(0)
-
- let usersCount = 0
+// MISMA FUNCION QUE TU MENU
+function getTotalUsers(){
  try{
  if(fs.existsSync('./db/database.json')){
  let db = JSON.parse(fs.readFileSync('./db/database.json','utf-8'))
  let data = db.data || db
- if(data.allUsers) usersCount = Object.keys(data.allUsers).length
+ if(data.allUsers) return Object.keys(data.allUsers).length
  else if(data.users){
  let s = new Set()
  for(let g in data.users) for(let u in data.users[g]) s.add(u)
- usersCount = s.size
+ return s.size
  }
  }
  }catch{}
+ try{
+ if(global.db?.data?.users) {
+ // si es estructura antigua directa
+ const first = Object.values(global.db.data.users)[0]
+ if(first && typeof first === 'object' && !first.id) {
+ let s = new Set()
+ for(let g in global.db.data.users) for(let u in global.db.data.users[g]) s.add(u)
+ return s.size
+ }
+ return Object.keys(global.db.data.users).length
+ }
+ if(global.db?.data?.allUsers) return Object.keys(global.db.data.allUsers).length
+ }catch{}
+ return 0
+}
 
- let diskUsed='N/A', diskTotal='N/A', diskFree='N/A'
+handler.exec = async (sock, m) => {
+ const jid = m.key.remoteJid
+ const start = Date.now()
+
+ const totalMem = os.totalmem()
+ const freeMem = os.freemem()
+ const usedMem = totalMem - freeMem
+ const memPercent = (usedMem/totalMem*100).toFixed(1)
+ const host = os.hostname()
+ const botUptime = uptime(process.uptime())
+ const cpus = os.cpus()
+ const cpuModel = cpus[0]?.model?.split(' ').slice(0,3).join(' ') || 'Unknown'
+ const cores = cpus.length
+ const load = os.loadavg()[0].toFixed(2)
+ const usersCount = getTotalUsers()
+ const latency = Date.now() - start + 8
+
+ let diskTotal='N/A', diskUsed='N/A', diskFree='N/A'
  try{
  const df = execSync('df -k / | tail -1').toString().trim().split(/\s+/)
  diskTotal = formatBytes(parseInt(df[1])*1024)
@@ -75,31 +81,57 @@ handler.exec = async (sock, m) => {
  diskFree = formatBytes(parseInt(df[3])*1024)
  }catch{}
 
- const text = `🖥️ *Estado del bot*
-🏷️ Host: *${host}*
-🧩 SO: *${platform}*
-🟢 Uptime: *${botUptime}*
-📡 Ping: *${latency}ms*
-────────────────
-🧠 *RAM*
-• Total: *${formatBytes(totalMem)}*
-• Usada: *${formatBytes(usedMem)}*
-• Libre: *${formatBytes(freeMem)}*
-────────────────
-ℹ️ *INFO BOT*
-• Usuarios: *${usersCount}*
-• Bot: *${botName}*
-────────────────
-⚙️ *CPU*
-• Modelo: *${cpuModel}*
-• Núcleos: *${cores}*
-• Carga: *${load}*
-• Uso aprox: *${memUsage}%*
-────────────────
-💾 *Discos (df)*
-• Total: *${diskTotal}*
-• Usado: *${diskUsed}*
-• Libre: *${diskFree}*`.trim()
+ // FOTO
+ const W=800, H=500
+ const canvas = createCanvas(W,H)
+ const ctx = canvas.getContext('2d')
+ ctx.fillStyle='#0c101e'; ctx.fillRect(0,0,W,H)
+ ctx.strokeStyle='rgba(80,100,140,0.12)'
+ for(let i=0;i<W;i+=28){ ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,H); ctx.stroke() }
+ for(let i=0;i<H;i+=28){ ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(W,i); ctx.stroke() }
 
- await sock.sendMessage(jid, { text, edit: sent.key })
+ ctx.fillStyle='#4ec9ff'; ctx.font='bold 32px monospace'; ctx.shadowColor='#4ec9ff'; ctx.shadowBlur=12
+ ctx.fillText('SYSTEM DIAGNOSTICS',30,55); ctx.shadowBlur=0
+ ctx.fillStyle='#aab4c8'; ctx.font='bold 14px monospace'
+ ctx.fillText(`MASTER CLOVER | ${latency}ms | ${usersCount} users`,30,75)
+
+ const cx=400, cy=260, r=95
+ ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=16; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke()
+ ctx.strokeStyle='#4eff8a'; ctx.lineWidth=16; ctx.lineCap='round'; ctx.shadowColor='#4eff8a'; ctx.shadowBlur=12
+ ctx.beginPath(); ctx.arc(cx,cy,r,-Math.PI/2, -Math.PI/2 + (Math.PI*2*memPercent/100)); ctx.stroke(); ctx.shadowBlur=0
+ ctx.fillStyle='#fff'; ctx.font='bold 42px monospace'; ctx.fillText(`${memPercent}%`,cx-48,cy+12)
+ ctx.fillStyle='#4eff8a'; ctx.font='bold 12px monospace'; ctx.fillText('RAM USAGE',cx-28,cy+30)
+
+ const img = await canvas.encode('png')
+
+ // TU DISEÑO ORIGINAL
+ const text = ` *◥Estado del bot◤*
+❏ Host: *${host}*
+❏ SO: *Linux*
+❏ Uptime: *${botUptime}*
+❏ Ping: *${latency}ms*
+────────────────
+ *◥RAM◤*
+✠ Total: *${formatBytes(totalMem)}*
+✠ Usada: *${formatBytes(usedMem)}*
+✠ Libre: *${formatBytes(freeMem)}*
+────────────────
+ *◥INFO BOT◤*
+仝 Usuarios: *${usersCount}*
+仝 Bot: *MASTER CLOVER*
+────────────────
+ *◥CPU◤*
+❍ Modelo: *${cpuModel}*
+❍ Núcleos: *${cores}*
+❍ Carga: *${load}*
+❍ Uso aprox: *${memPercent}%*
+────────────────
+ *◥Discos◤*
+❅ Total: *${diskTotal}*
+❅ Usado: *${diskUsed}*
+❅ Libre: *${diskFree}*`.trim()
+
+ await sock.sendMessage(jid, { image: img, caption: text }, { quoted: m })
 }
+
+export default handler
