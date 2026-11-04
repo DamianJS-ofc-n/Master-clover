@@ -5,14 +5,24 @@ export const handler = {}
 handler.name = 'setbanner'
 handler.category = 'subbots'
 
-function getRealPath(num){
- const p1 = path.join(process.cwd(), 'subbots', num, 'config.json')
- const p2 = path.join(process.cwd(), 'jadiBots', num, 'config.json')
- const p3 = path.join(process.cwd(), 'principals', num, 'config.json')
- if(fs.existsSync(p1)) return p1
- if(fs.existsSync(p2)) return p2
- if(fs.existsSync(p3)) return p3
- return p1
+function saveAll(num, data){
+ const paths = [
+ path.join(process.cwd(), 'principals', num, 'config.json'),
+ path.join(process.cwd(), 'subbots', num, 'config.json'),
+ path.join(process.cwd(), 'jadiBots', num, 'config.json')
+ ]
+ for(let p of paths){
+ try{
+ let dir = path.dirname(p)
+ if(!fs.existsSync(dir)) fs.mkdirSync(dir,{recursive:true})
+ let existing = {}
+ if(fs.existsSync(p)){
+ try{ existing = JSON.parse(fs.readFileSync(p,'utf8')) }catch{}
+ }
+ let merged = {...existing, ...data}
+ fs.writeFileSync(p, JSON.stringify(merged, null, 2))
+ }catch{}
+ }
 }
 
 handler.exec = async (sock, m, args) => {
@@ -36,7 +46,7 @@ handler.exec = async (sock, m, args) => {
  if(buffer){
  const dir = path.join(process.cwd(), 'db')
  if(!fs.existsSync(dir)) fs.mkdirSync(dir, {recursive:true})
- let num = sock?.user?.id?.split(':')[0]?.replace(/\D/g,'') || sock.subNumber || 'main'
+ let num = sock?.user?.id?.split(':')[0]?.split('@')[0]?.replace(/\D/g,'') || sock.subNumber || 'main'
  const filePath = path.join(dir, `banner_${num}.jpg`)
  fs.writeFileSync(filePath, buffer)
  bannerToSave = filePath
@@ -44,21 +54,14 @@ handler.exec = async (sock, m, args) => {
 
  if(!bannerToSave) return sock.sendMessage(jid, {text:'❌ Usa .setbanner <link> o responde a una foto'}, {quoted:m})
 
- let num = sock?.user?.id?.split(':')[0]?.replace(/\D/g,'') || sock.subNumber || sock.principalNumber
- const cfgPath = getRealPath(num)
- const dir = path.dirname(cfgPath)
- if(!fs.existsSync(dir)) fs.mkdirSync(dir, {recursive:true})
- 
- let data = { name: 'Bot', banner: '', theme: 'normal' }
- if(fs.existsSync(cfgPath)){
- try{ data = JSON.parse(fs.readFileSync(cfgPath,'utf8')) }catch{}
- }
- data.banner = bannerToSave
- fs.writeFileSync(cfgPath, JSON.stringify(data, null, 2))
+ let num = sock?.user?.id?.split(':')[0]?.split('@')[0]?.replace(/\D/g,'') || sock.subNumber || sock.principalNumber
+ if(!num) num = (sock?.user?.id || '').replace(/\D/g,'')
+
+ saveAll(num, { banner: bannerToSave })
 
  if(sock.subConfig) sock.subConfig.banner = bannerToSave
  if(sock.principalConfig) sock.principalConfig.banner = bannerToSave
 
- await sock.sendMessage(jid, {text:`✅ Banner cambiado`}, {quoted:m})
+ await sock.sendMessage(jid, {text:`✅ Banner cambiado y guardado en principals + subbots`}, {quoted:m})
 }
 export default handler

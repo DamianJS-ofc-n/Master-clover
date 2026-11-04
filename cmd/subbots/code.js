@@ -1,47 +1,111 @@
-import { createJadiBot } from '../../lib/jadi.js'
-import config from '../../config.js'
+import makeWASocket, { useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, Browsers } from 'WhiskeySockets-locosyasociados'
+import pino from 'pino'
+import fs from 'fs'
+import path from 'path'
 
 export const handler = {}
 handler.name = 'code'
-handler.alias = ['jadibot','serbot','codebot','botcode','qr']
-handler.category = 'owner'
-handler.owner = false
+handler.alias = ['serbot','jadibot','subbot','masters','codebot']
+handler.category = 'jadi'
 
-const clean = (n='') => String(n).replace(/\D/g,'')
+const clean = n => String(n||'').split('@')[0].split(':')[0].replace(/\D/g,'')
 
-handler.exec = async (...args) => {
- let sock, m, a
- if (args[0]?.key) { m = args[0]; sock = args[1]?.conn || global.conn; a = args[1]?.args || [] }
- else { sock = args[0]; m = args[1]; a = args[2] || [] }
+handler.exec = async (sock, m) => {
+ const from = m.key?.remoteJid
+ const isGroup = from?.endsWith('@g.us')
+ const text = m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || ''
+ const args = text.trim().split(/\s+/).slice(1)
+ 
+ // PRIORIDAD: si escribe .code 549... usar eso, no detectar
+ let target = args[0] ? clean(args[0]) : null
 
- const from = m.key.remoteJid
- const number = clean(a[0] || '')
+ // Solo si no pasó número, intentar detectar
+ if(!target){
+ let raw = ''
+ if(isGroup) raw = m.key?.participant || m.key?.participantPn || ''
+ else raw = m.key?.remoteJid || m.key?.remoteJidPn || m.key?.participant || ''
 
- if(!number){
-   return await sock.sendMessage(from,{text:`ㅤ ロ⃝ ❀ \`Sub-Bots masters\`\nᗤᗤ *Conecta un Sub-bot usando codigo de 8 digitos*\n\nUso: ${config.prefix}code 5959xxxxxx`},{quoted:m})
+ // traducir LID si hace falta
+ if(String(raw).includes('@lid')){
+ try{
+ let pn = await sock.signalRepository?.lidMapping?.getPNForLID?.(raw)
+ if(pn) target = clean(pn)
+ }catch{}
+ } else {
+ target = clean(raw)
+ }
  }
 
- await sock.sendMessage(from,{text:`⏳ Generando código para +${number}...`},{quoted:m})
+ if(!target || target.length < 10 || target.length > 15 || target.startsWith('1408') || /^\d{16,}$/.test(target)){
+ return sock.sendMessage(from, { text: `❌ Usa manual, tu WhatsApp está en modo LID y no puedo leer tu número.\n\nEjemplo:\n.code 5492645746772\n\n(Sin + , sin espacios)` }, { quoted: m })
+ }
+
+ const subPath = path.join(process.cwd(),'subbots',target)
+ try{
+ if(fs.existsSync(path.join(subPath,'creds.json'))){
+ let j = JSON.parse(fs.readFileSync(path.join(subPath,'creds.json'),'utf-8'))
+ if(!j.registered){
+ fs.rmSync(subPath,{recursive:true,force:true})
+ }
+ }
+ }catch{}
+ if(!fs.existsSync(subPath)) fs.mkdirSync(subPath,{recursive:true})
+
+ const caption = `ㅤ ロ⃝ ❀ \`Sub-Bots masters\` 
+ᗤᗤ *Conecta un Sub-bot para el número » ${target}*
+
+ 🥷 *Pasos de vinculación*
+
+⚔️ 1️⃣*Abre WhatsApp en tu teléfono » Ve a Ajustes/Configuración*
+
+⚔️ 2️⃣ *Entra en Dispositivos vinculados* 
+
+⚔️ 3️⃣ *Pulsa Vincular un dispositivo y Selecciona Vincular con número de teléfono*
+
+⚔️ 4️⃣ *Pega el código que te dió el bot hay.*
+
+> Este código expira en 60 segundos`
+
+ await sock.sendMessage(from, { text: `⏳ Generando para ${target}...` }, { quoted: m })
 
  try{
-   await createJadiBot(sock, m, number, null, false, {
-     onCode: async (code) => {
-       let texto = `ㅤ ロ⃝ ❀ \`Sub-Bots masters\` \nᗤᗤ *Conecta un Sub-bot usando codigo de 8 digitos*\n\n 🥷 *Pasos de vinculación*\n\n⚔️ 1️⃣*Abre WhatsApp en tu teléfono » Ve a Ajustes/Configuración*\n\n⚔️ 2️⃣ *Entra en Dispositivos vinculados* \n\n⚔️ 3️⃣ *Pulsa Vincular un dispositivo y Selecciona Vincular con número de teléfono*\n\n⚔️ 4️⃣ *Pega el código que te dió el bot hay.*\n\n> Este código expira en 60 segundos`
+ const { state, saveCreds } = await useMultiFileAuthState(subPath)
+ if(state.creds.registered){
+ return sock.sendMessage(from, { text:`✅ ${target} ya está vinculado` }, { quoted: m })
+ }
+ const { version } = await fetchLatestBaileysVersion()
+ const subSock = makeWASocket({
+ version,
+ auth:{ creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, pino({level:'silent'})) },
+ logger: pino({level:'silent'}),
+ browser: Browsers.ubuntu('Chrome'),
+ printQRInTerminal:false,
+ markOnlineOnConnect:false,
+ })
+ subSock.ev.on('creds.update', saveCreds)
 
-       await sock.sendMessage(from,{text: texto},{quoted:m})
-       await sock.sendMessage(from,{text: `\`${code}\``},{quoted:m})
-     },
-     onConnected: async (subSock) => {
-       await sock.sendMessage(from,{text:`✅ *SubBot Conectado* +${number}`},{quoted:m})
-     },
-     onError: async (err) => {
-       await sock.sendMessage(from,{text:`❌ ${err}`},{quoted:m})
-     },
-     onClose: async (reason) => {
-       await sock.sendMessage(from,{text:`⚠️ Cerrado: ${reason}`},{quoted:m})
-     }
-   })
+ const code = await subSock.requestPairingCode(target)
+ const fmt = code?.match(/.{1,4}/g)?.join('-') || code
+
+ await sock.sendMessage(from, { text: caption }, { quoted: m })
+ await new Promise(r=>setTimeout(r,500))
+ await sock.sendMessage(from, { text: `${fmt}` }, { quoted: m })
+
+ subSock.ev.on('connection.update', async u=>{
+ if(u.connection==='open'){
+ await sock.sendMessage(from, { text:`✅ Sub-bot ${target} conectado!` }, { quoted: m })
+ try{ const main=await import('../../main.js'); subSock.ev.on('messages.upsert', up=> main.handleMessages(subSock, up)) }catch{}
+ }
+ })
+
  }catch(e){
-   await sock.sendMessage(from,{text:`❌ ${e.message}`},{quoted:m})
+ console.log('[CODE ERR]', e)
+ // Connection Closed = rate limit, borrar para reintentar
+ if(String(e.message).includes('Connection Closed')){
+ try{ fs.rmSync(subPath,{recursive:true,force:true}) }catch{}
+ return sock.sendMessage(from, { text:`❌ WhatsApp cerró la conexión (rate limit).\n\nEsperá 2-3 minutos y volvé a usar:\n.code ${target}\n\nNo spamees el comando.` }, { quoted: m })
+ }
+ try{ fs.rmSync(subPath,{recursive:true,force:true}) }catch{}
+ await sock.sendMessage(from, { text:`❌ Error: ${e.message}` }, { quoted: m })
  }
 }

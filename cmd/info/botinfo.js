@@ -19,11 +19,10 @@ function isSubBotCheck(sock) {
  try {
  const botId = (sock.user?.id || '').replace(/[^0-9]/g, '').slice(0,20)
  if (!botId) return false
- // 1. Carpeta JadiBots
- if (fs.existsSync(`./JadiBots/${botId}`)) return true
- // 2. Esta en global.conns (si el principal lo guarda)
+ if (fs.existsSync(`./subbots/${botId}`)) return true
+ if (fs.existsSync(`./jadiBots/${botId}`)) return true
+ if (fs.existsSync(`./principals/${botId}`)) return false
  if (global.conns?.length && global.conns.find(c => c.user?.id?.includes(botId))) return true
- // 3. No coincide con el numero del owner principal del config
  const mainNumber = (config.bot?.number || config.owner?.[0]?.[0] || '').toString().replace(/[^0-9]/g,'')
  if (mainNumber && botId !== mainNumber && !botId.includes(mainNumber)) return true
  } catch {}
@@ -54,13 +53,13 @@ handler.exec = async (sock, m) => {
  let minutos = Math.floor((uptime % 3600) / 60)
  let activo = `${horas}h ${minutos}m`
  
- let tipoReal = isSubBotCheck(sock) ? 'Sub-bot' : 'Principal'
- let botName = config.bot?.name || config.botName || 'Kitsune'
+ let tipoReal = sock.isPrincipal ? 'Principal' : (sock.isSubBot ? 'Sub-bot' : (isSubBotCheck(sock) ? 'Sub-bot' : 'Principal'))
+ let botName = sock.principalConfig?.name || sock.subConfig?.name || config.bot?.name || 'MASTER CLOVER'
  let moneda = config.economy?.coin || 'Coins'
  let prefijos = Array.isArray(config.bot?.prefix) ? config.bot.prefix.join(', ') : (config.bot?.prefix || '.')
  let link = config.channels?.Web || ''
  let channelId = config.channels?.id || ''
- let channelName = config.channels?.cname || 'KITSUNE-MD'
+ let channelName = config.channels?.cname || 'LOCOS Y ASOCIADOS'
  let nodeV = process.version
  let usuarios = 0
  try { if (global.db?.data?.users) usuarios = Object.keys(global.db.data.users).length } catch {}
@@ -69,8 +68,8 @@ handler.exec = async (sock, m) => {
  let text = `✐ Información del bot *${botName}*\n\n`
  text += `> ✿ *Nombre ›* ${botName}\n`
  text += `> ✦ *Moneda ›* ${moneda}\n`
- text += `> ✦ *Prefijo's ›* \`${prefijos}\`\n`
- text += `> ❖ *Ping ›* ${ping}ms\n`
+ text += `> 🌹 *Prefijo's ›* \`${prefijos}\`\n`
+ text += `> ✐ *Ping ›* ${ping}ms\n`
  text += `> ✐ *Usuarios ›* ${usuarios}\n\n`
  text += `> ★ *Tipo ›* ${tipoReal}\n`
  text += `> ❒ *Plataforma ›* ${getPlatform()}\n`
@@ -79,9 +78,10 @@ handler.exec = async (sock, m) => {
  text += `> ❒ *Dev ›* DamianJS-ofc`
  if (link) text += `\n\n> ${link}`
 
- // Busca foto - soporta link y local
  let imgBuffer = null
  const fotosTry = [
+ sock.principalConfig?.banner,
+ sock.subConfig?.banner,
  './db/fotos/icon.jpg',
  './db/fotos/banner.jpg',
  config.bot?.foto,
