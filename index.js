@@ -8,7 +8,9 @@ import pino from 'pino'
 import { start, handleMessages, loadPlugins } from './main.js'
 import readline from 'readline'
 import fs from 'fs'
+import path from 'path'
 import qrcode from 'qrcode-terminal'
+import { createJadiBot, waitForSubConnection, removeSub } from './lib/jadi.js'
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
 const question = (t) => new Promise(r => rl.question(t, r))
@@ -47,6 +49,7 @@ function getWelcomeDB() {
     return {}
   }
 }
+
 function isWelcomeOn(groupId) {
   const db = getWelcomeDB()
   if (db[groupId] === undefined) return true
@@ -57,11 +60,8 @@ function normalizePhone(input) {
   let s = String(input || '').replace(/\D/g, '')
   if (!s) return ''
   if (s.startsWith('0')) s = s.replace(/^0+/, '')
-  // CO móvil 10 dígitos empezando en 3
   if (s.length === 10 && s.startsWith('3')) s = '57' + s
-  // MX
   if (s.startsWith('52') && !s.startsWith('521') && s.length >= 12) s = '521' + s.slice(2)
-  // AR
   if (s.startsWith('54') && !s.startsWith('549') && s.length >= 11) s = '549' + s.slice(2)
   return s
 }
@@ -80,11 +80,10 @@ let phoneNumber = ''
 const methodCodeQR = process.argv.includes('--qr')
 const methodCode = process.argv.includes('code')
 
-// ─── Banderas críticas para el pairing ─────────────────────────────────────
-let pairingRequested = false   // ya pedimos el código una vez
-let pairingCodeShown = false   // ya lo mostramos en consola
-let waitingPairing = false     // esperando que el usuario lo ingrese en el teléfono
-let botStarted = false         // start()/loadPlugins solo una vez
+let pairingRequested = false
+let pairingCodeShown = false
+let waitingPairing = false
+let botStarted = false
 let reconnectTimer = null
 
 async function pedirMetodo() {
@@ -143,10 +142,6 @@ async function pedirMetodo() {
   }
 }
 
-/**
- * Pide el código UNA sola vez, cuando el socket ya existe.
- * No reinicia el bot si falla: reintenta el request en el mismo socket.
- */
 async function requestCodeOnce(sock) {
   if (pairingRequested || pairingCodeShown) return
   if (sock.authState?.creds?.registered) return
@@ -157,7 +152,6 @@ async function requestCodeOnce(sock) {
 
   try {
     console.log(`\n${c.pink} Generando código para ${phoneNumber}...${c.reset}`)
-    // Algunos builds de Baileys requieren un pequeño delay tras crear el socket
     await new Promise(r => setTimeout(r, 1500))
 
     if (sock.authState?.creds?.registered) {
@@ -178,10 +172,53 @@ async function requestCodeOnce(sock) {
     console.log(`  → Escribe el código de arriba.${c.reset}\n`)
     console.log(`${c.yellow} ⚠ No cierres esta terminal. Espera a que diga CONECTADO.${c.reset}\n`)
   } catch (e) {
-    pairingRequested = false // permitir un reintento
+    pairingRequested = false
     console.log(`${c.yellow} ✖ Error al pedir código: ${e.message}${c.reset}`)
     console.log(`${c.pinkDim} Reintentando en 5s...${c.reset}`)
     setTimeout(() => requestCodeOnce(sock), 5000)
+  }
+}
+
+async function reconectarSubbots(sockPrincipal, m = null) {
+  const dirSubbots = path.join(process.cwd(), 'subbots')
+  const dirJadi = path.join(process.cwd(), 'jadiBots')
+
+  const carpetas = []
+  if (fs.existsSync(dirSubbots)) carpetas.push(...fs.readdirSync(dirSubbots).map(f => path.join(dirSubbots, f)))
+  if (fs.existsSync(dirJadi)) carpetas.push(...fs.readdirSync(dirJadi).map(f => path.join(dirJadi, f)))
+
+  if (carpetas.length === 0) return
+
+  console.log(`\n${c.celeste}🔄 Buscando sub-bots para reconectar...${c.reset}`)
+
+  for (const carpeta of carpetas) {
+    try {
+      if (!fs.statSync(carpeta).isDirectory()) continue
+      
+      const numero = path.basename(carpeta)
+      const credsPath = path.join(carpeta, 'creds.json')
+
+      if (fs.existsSync(credsPath)) {
+        console.log(`${c.pinkDim} ↻ Reconectando sub-bot: ${numero}...${c.reset}`)
+        
+        await createJadiBot(sockPrincipal, m, numero, null, true)
+        
+        const conectado = await waitForSubConnection(numero, 45000)
+        
+        if (conectado) {
+          console.log(`${c.verde} ✅ Sub-bot ${numero} reconectado y escuchando comandos.${c.reset}`)
+        } else {
+          console.log(`${c.yellow} ⚠️ Sub-bot ${numero} no pudo reconectar (sesión inválida o tiempo agotado).${c.reset}`)
+          console.log(`${c.yellow} 🗑️ Eliminando sesión corrupta de ${numero}...${c.reset}`)
+          removeSub(numero)
+        }
+        
+        await new Promise(r => setTimeout(r, 1500))
+      }
+    } catch (e) {
+      console.log(`${c.yellow} ⚠️ Error crítico reconectando ${path.basename(carpeta)}: ${e.message}${c.reset}`)
+      removeSub(path.basename(carpeta))
+    }
   }
 }
 
@@ -198,16 +235,12 @@ async function startBot() {
     markOnlineOnConnect: false,
     syncFullHistory: false,
     keepAliveIntervalMs: 30000,
-    // Importante en pairing: evita que se genere QR por debajo
     mobile: false
   })
 
   sock.ev.on('creds.update', saveCreds)
 
-  // Pedir código cuando el socket arranca (solo modo 2, solo una vez)
   if (!state.creds?.registered && opcion === '2' && phoneNumber) {
-    // requestPairingCode apenas el evento de conexión indique que está vivo
-    // o, como fallback, tras un delay corto
     const tryRequest = () => requestCodeOnce(sock)
     setTimeout(tryRequest, 2000)
   }
@@ -283,14 +316,13 @@ async function startBot() {
   })
 
   sock.ev.on('connection.update', async (update) => {
-    const { qr, connection, lastDisconnect, isNewLogin } = update
+    const { qr, connection, lastDisconnect } = update
 
     if (qr && opcion === '1') {
       console.log(`${c.pink}${c.bold} ✿ Escanea este código QR${c.reset}\n`)
       qrcode.generate(qr, { small: true })
     }
 
-    // Si estamos en modo código y aún no registrado, intentar pedir el código
     if (
       connection === 'connecting' &&
       opcion === '2' &&
@@ -322,32 +354,24 @@ async function startBot() {
           }
         }, 1000 * 60 * 60)
       }
+      
+      await reconectarSubbots(sock)
     }
 
     if (connection === 'close') {
       const status = lastDisconnect?.error?.output?.statusCode
       const loggedOut = status === DisconnectReason.loggedOut
 
-      // 🔑 CLAVE: mientras esperamos que el usuario escriba el código,
-      // NO reiniciar el bot (eso invalidaba el código mostrado).
       if (waitingPairing && !loggedOut && !sock.authState?.creds?.registered) {
-        console.log(
-          `${c.pinkDim} Esperando vinculación… no reinicio el proceso.${c.reset}`
-        )
-        // Reabrir socket SIN pedir un código nuevo (pairingRequested sigue true
-        // si ya se mostró; si aún no, requestCodeOnce podrá intentarlo).
+        console.log(`${c.pinkDim} Esperando vinculación… no reinicio el proceso.${c.reset}`)
         if (reconnectTimer) clearTimeout(reconnectTimer)
         reconnectTimer = setTimeout(() => {
-          // Solo reconectar si sigue sin registrarse
           if (!fs.existsSync('./session/main1/creds.json')) {
-            // reset suave de la bandera de request si nunca se mostró código
             if (!pairingCodeShown) pairingRequested = false
             startBot()
           } else {
             try {
-              const creds = JSON.parse(
-                fs.readFileSync('./session/main1/creds.json', 'utf8')
-              )
+              const creds = JSON.parse(fs.readFileSync('./session/main1/creds.json', 'utf8'))
               if (!creds?.registered) {
                 if (!pairingCodeShown) pairingRequested = false
                 startBot()

@@ -10,25 +10,25 @@
     "serialize": "./lib/serialize.js"
   },
   "dependencies": {
-    "WhiskeySockets-locosyasociados": "github:DamianJS-ofc-n/WhiskeySockets-locosyasociados",
-    "better-sqlite3": "^11.3.0",
-    "ws": "^8.18.0",
-    "sharp": "^0.33.4",
+    "@napi-rs/canvas": "^1.1.0",
     "axios": "*",
-    "canvas": "^3.2.3",
+    "better-sqlite3": "^11.3.0",
     "cfonts": "^3.1.1",
     "chalk": "^5.0.0",
     "cheerio": "^1.2.0",
-    "crypto": "^1.0.1",
-    "fs": "^0.0.1-security",
+    "dotenv": "*",
     "grapheme-splitter": "^1.0.4",
     "moment": "^2.29.4",
+    "node-cache": "*",
+    "mongoose": "*",
     "node-fetch": "^3.3.2",
     "node-webpmux": "^3.2.1",
-    "path": "^0.12.7",
     "pino": "^8.17.0",
     "qrcode-terminal": "^0.12.0",
     "readline-sync": "^1.4.10",
+    "sharp": "^0.33.4",
+    "WhiskeySockets-locosyasociados": "github:DamianJS-ofc-n/WhiskeySockets-locosyasociados",
+    "ws": "^8.18.0",
     "yt-search": "^2.13.1"
   }
 }
