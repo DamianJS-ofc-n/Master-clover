@@ -1,111 +1,146 @@
-import makeWASocket, { useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, Browsers } from 'WhiskeySockets-locosyasociados'
-import pino from 'pino'
-import fs from 'fs'
-import path from 'path'
+import handlerBase from '../../lib/jadi.js'
 
 export const handler = {}
 handler.name = 'code'
-handler.alias = ['serbot','jadibot','subbot','masters','codebot']
+handler.alias = ['serbot', 'jadibot', 'subbot', 'masters']
 handler.category = 'jadi'
 
-const clean = n => String(n||'').split('@')[0].split(':')[0].replace(/\D/g,'')
+const {
+  getPairingCode,
+  getSub,
+  getSubConfig,
+  getConnectionStatus,
+  waitForSubConnection,
+  cleanNumber,
+  isValidBotNumber
+} = handlerBase
+
+const clean = (n = '') => String(n).split('@')[0].split(':')[0].replace(/\D/g, '')
+
+async function lidToPn(lid, sock) {
+  let jid = String(lid)
+  if (!jid.includes('@')) jid = jid + '@lid'
+  try {
+    let pn = await sock.signalRepository?.lidMapping?.getPNForLID?.(jid)
+    if (pn) return clean(pn)
+  } catch {}
+  return null
+}
+
+async function getNumber(m, sock) {
+  for (let k of [m.key?.participantPn, m.key?.remoteJidPn, m.senderPn]) {
+    if (k) {
+      let n = clean(k)
+      if (n.length >= 8 && n.length <= 15) return n
+    }
+  }
+  let raw = String(m.sender || m.key?.remoteJid || '')
+  if (raw.includes('@lid')) {
+    let pn = await lidToPn(raw, sock)
+    if (pn) return pn
+  }
+  return clean(raw)
+}
+
+function normalizeTarget(target) {
+  if (!target) return ''
+  let t = clean(target)
+  if (t.length === 14 && t.startsWith('54') && t.endsWith('0')) {
+    t = t.slice(0, -1)
+  }
+  return t
+}
+
+function buildCaption(target) {
+  return `ㅤ ロ⃝ ❀ \`Sub-Bots masters\` ᗤᗤ
+*Conecta un Sub-bot para el número » ${target}*
+
+🥷 *Pasos de vinculación*
+⚔️ 1️⃣ *Abre WhatsApp » Ajustes*
+⚔️ 2️⃣ *Dispositivos vinculados*
+⚔️ 3️⃣ *Vincular un dispositivo > Vincular con número de teléfono*
+⚔️ 4️⃣ *Pega el código que te doy abajo*
+
+> Expira en 60 segundos`
+}
 
 handler.exec = async (sock, m) => {
- const from = m.key?.remoteJid
- const isGroup = from?.endsWith('@g.us')
- const text = m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || ''
- const args = text.trim().split(/\s+/).slice(1)
- 
- // PRIORIDAD: si escribe .code 549... usar eso, no detectar
- let target = args[0] ? clean(args[0]) : null
+  const jid = m.key.remoteJid
+  const body = m.message?.conversation || m.message?.extendedTextMessage?.text || ''
+  const args = body.trim().split(/\s+/).slice(1)
 
- // Solo si no pasó número, intentar detectar
- if(!target){
- let raw = ''
- if(isGroup) raw = m.key?.participant || m.key?.participantPn || ''
- else raw = m.key?.remoteJid || m.key?.remoteJidPn || m.key?.participant || ''
+  let target = args[0] ? clean(args[0]) : await getNumber(m, sock)
+  target = normalizeTarget(target)
 
- // traducir LID si hace falta
- if(String(raw).includes('@lid')){
- try{
- let pn = await sock.signalRepository?.lidMapping?.getPNForLID?.(raw)
- if(pn) target = clean(pn)
- }catch{}
- } else {
- target = clean(raw)
- }
- }
+  if (!target || !isValidBotNumber(target)) {
+    return sock.sendMessage(
+      jid,
+      {
+        text: `❌ No pude sacar un número válido\nUsa: .code 5492645746772\nTu LID es: ${m.sender}`
+      },
+      { quoted: m }
+    )
+  }
 
- if(!target || target.length < 10 || target.length > 15 || target.startsWith('1408') || /^\d{16,}$/.test(target)){
- return sock.sendMessage(from, { text: `❌ Usa manual, tu WhatsApp está en modo LID y no puedo leer tu número.\n\nEjemplo:\n.code 5492645746772\n\n(Sin + , sin espacios)` }, { quoted: m })
- }
+  const existing = getSub(target)
+  if (existing?.sock?.authState?.creds?.registered === true && existing.sock.user) {
+    return sock.sendMessage(jid, { text: `✅ ${target} ya está vinculado` }, { quoted: m })
+  }
 
- const subPath = path.join(process.cwd(),'subbots',target)
- try{
- if(fs.existsSync(path.join(subPath,'creds.json'))){
- let j = JSON.parse(fs.readFileSync(path.join(subPath,'creds.json'),'utf-8'))
- if(!j.registered){
- fs.rmSync(subPath,{recursive:true,force:true})
- }
- }
- }catch{}
- if(!fs.existsSync(subPath)) fs.mkdirSync(subPath,{recursive:true})
+  await sock.sendMessage(jid, { text: `⏳ Generando código para ${target}...` }, { quoted: m })
 
- const caption = `ㅤ ロ⃝ ❀ \`Sub-Bots masters\` 
-ᗤᗤ *Conecta un Sub-bot para el número » ${target}*
+  const config = getSubConfig(target)
 
- 🥷 *Pasos de vinculación*
+  try {
+    const result = await getPairingCode(target, config)
 
-⚔️ 1️⃣*Abre WhatsApp en tu teléfono » Ve a Ajustes/Configuración*
+    if (result.status === 'connected') {
+      return sock.sendMessage(jid, { text: `✅ ${target} ya está vinculado` }, { quoted: m })
+    }
 
-⚔️ 2️⃣ *Entra en Dispositivos vinculados* 
+    if (result.status === 'timeout') {
+      return sock.sendMessage(
+        jid,
+        { text: `⏱️ No se pudo generar el código a tiempo para ${target}. Intenta de nuevo en unos segundos.` },
+        { quoted: m }
+      )
+    }
 
-⚔️ 3️⃣ *Pulsa Vincular un dispositivo y Selecciona Vincular con número de teléfono*
+    if (result.status === 'pending' && result.code) {
+      await sock.sendMessage(jid, { text: buildCaption(target) }, { quoted: m })
+      await sock.sendMessage(jid, { text: `*${result.code}*` }, { quoted: m })
 
-⚔️ 4️⃣ *Pega el código que te dió el bot hay.*
+      waitForSubConnection(target, 180_000)
+        .then(async (ok) => {
+          if (ok) {
+            try {
+              await sock.sendMessage(
+                jid,
+                { text: `✅ Sub-bot ${target} conectado!` },
+                { quoted: m }
+              )
+            } catch {}
+          }
+        })
+        .catch(() => {})
+      return
+    }
 
-> Este código expira en 60 segundos`
-
- await sock.sendMessage(from, { text: `⏳ Generando para ${target}...` }, { quoted: m })
-
- try{
- const { state, saveCreds } = await useMultiFileAuthState(subPath)
- if(state.creds.registered){
- return sock.sendMessage(from, { text:`✅ ${target} ya está vinculado` }, { quoted: m })
- }
- const { version } = await fetchLatestBaileysVersion()
- const subSock = makeWASocket({
- version,
- auth:{ creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, pino({level:'silent'})) },
- logger: pino({level:'silent'}),
- browser: Browsers.ubuntu('Chrome'),
- printQRInTerminal:false,
- markOnlineOnConnect:false,
- })
- subSock.ev.on('creds.update', saveCreds)
-
- const code = await subSock.requestPairingCode(target)
- const fmt = code?.match(/.{1,4}/g)?.join('-') || code
-
- await sock.sendMessage(from, { text: caption }, { quoted: m })
- await new Promise(r=>setTimeout(r,500))
- await sock.sendMessage(from, { text: `${fmt}` }, { quoted: m })
-
- subSock.ev.on('connection.update', async u=>{
- if(u.connection==='open'){
- await sock.sendMessage(from, { text:`✅ Sub-bot ${target} conectado!` }, { quoted: m })
- try{ const main=await import('../../main.js'); subSock.ev.on('messages.upsert', up=> main.handleMessages(subSock, up)) }catch{}
- }
- })
-
- }catch(e){
- console.log('[CODE ERR]', e)
- // Connection Closed = rate limit, borrar para reintentar
- if(String(e.message).includes('Connection Closed')){
- try{ fs.rmSync(subPath,{recursive:true,force:true}) }catch{}
- return sock.sendMessage(from, { text:`❌ WhatsApp cerró la conexión (rate limit).\n\nEsperá 2-3 minutos y volvé a usar:\n.code ${target}\n\nNo spamees el comando.` }, { quoted: m })
- }
- try{ fs.rmSync(subPath,{recursive:true,force:true}) }catch{}
- await sock.sendMessage(from, { text:`❌ Error: ${e.message}` }, { quoted: m })
- }
+    await sock.sendMessage(
+      jid,
+      { text: `❌ No se pudo generar el código para ${target}. Intenta de nuevo.` },
+      { quoted: m }
+    )
+  } catch (e) {
+    console.log('[CODE ERROR]', e)
+    await sock.sendMessage(
+      jid,
+      {
+        text: `❌ Error: ${e.message}\n\nAsegúrate de poner el número sin + y sin espacios.\nEj: .code 5492645746772`
+      },
+      { quoted: m }
+    )
+  }
 }
+
+export default handler
