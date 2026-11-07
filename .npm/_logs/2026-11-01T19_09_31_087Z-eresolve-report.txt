@@ -1,0 +1,22 @@
+'Log files:
+/home/container/.npm/_logs/2026-11-01T19_09_31_087Z-debug-0.log
+
+# npm resolution error report
+
+While resolving: WhiskeySockets-locosyasociados@0.4.3
+Found: better-sqlite3@9.6.0
+node_modules/better-sqlite3
+  better-sqlite3@"^9.2.2" from the root project
+
+Could not resolve dependency:
+peerOptional better-sqlite3@">=11.0.0" from WhiskeySockets-locosyasociados@0.4.3
+node_modules/WhiskeySockets-locosyasociados
+  WhiskeySockets-locosyasociados@"github:DamianJS-ofc-n/WhiskeySockets-locosyasociados" from the root project
+
+Conflicting peer dependency: better-sqlite3@12.11.1
+node_modules/better-sqlite3
+  peerOptional better-sqlite3@">=11.0.0" from WhiskeySockets-locosyasociados@0.4.3
+  node_modules/WhiskeySockets-locosyasociados
+    WhiskeySockets-locosyasociados@"github:DamianJS-ofc-n/WhiskeySockets-locosyasociados" from the root project
+
+Fix the upstream dependency conflict, or retry this command with --force or --legacy-peer-deps to accept an incorrect (and potentially broken) dependency resolution.

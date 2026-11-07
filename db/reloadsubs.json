@@ -1,0 +1,14 @@
+{
+  "loops": [
+    {
+      "id": 5,
+      "target": "muertos",
+      "ms": 645000,
+      "label": "para los muertos",
+      "jid": "120363432518214662@g.us",
+      "count": 32,
+      "createdAt": 1794001542047
+    }
+  ],
+  "updatedAt": 1794022182050
+}

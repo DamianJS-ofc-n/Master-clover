@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "bin-version-check-cli": "^3.0.0"
+  },
+  "_npx": {
+    "packages": [
+      "bin-version-check-cli"
+    ]
+  }
+}

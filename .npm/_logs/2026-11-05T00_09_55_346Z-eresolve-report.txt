@@ -1,0 +1,30 @@
+'Log files:
+/home/container/.npm/_logs/2026-11-05T00_09_55_346Z-debug-0.log
+
+# npm resolution error report
+
+While resolving: baileys@6.7.18
+Found: sharp@0.33.5
+node_modules/sharp
+  peerOptional sharp@">=0.33.0" from @itsliaaa/starforge@0.0.0-alpha.12
+  node_modules/@itsliaaa/starforge
+    @itsliaaa/starforge@"0.0.0-alpha.12" from WhiskeySockets-locosyasociados@0.4.3
+    node_modules/WhiskeySockets-locosyasociados
+      WhiskeySockets-locosyasociados@"github:DamianJS-ofc-n/WhiskeySockets-locosyasociados" from the root project
+  peerOptional sharp@">=0.33.0" from WhiskeySockets-locosyasociados@0.4.3
+  node_modules/WhiskeySockets-locosyasociados
+    WhiskeySockets-locosyasociados@"github:DamianJS-ofc-n/WhiskeySockets-locosyasociados" from the root project
+  sharp@"^0.33.4" from the root project
+
+Could not resolve dependency:
+peerOptional sharp@"^0.32.6" from baileys@6.7.18
+node_modules/baileys
+  baileys@"6.7.18" from the root project
+
+Conflicting peer dependency: sharp@0.32.6
+node_modules/sharp
+  peerOptional sharp@"^0.32.6" from baileys@6.7.18
+  node_modules/baileys
+    baileys@"6.7.18" from the root project
+
+Fix the upstream dependency conflict, or retry this command with --force or --legacy-peer-deps to accept an incorrect (and potentially broken) dependency resolution.
