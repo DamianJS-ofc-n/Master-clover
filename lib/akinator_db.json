@@ -109,5 +109,12 @@
       "internet",
       "ficticio"
     ]
+  },
+  {
+    "name": "lucifer",
+    "desc": "Aprendido",
+    "tags": [
+      "real"
+    ]
   }
 ]
