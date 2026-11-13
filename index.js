@@ -3,7 +3,7 @@ import makeWASocket, {
   DisconnectReason,
   Browsers,
   fetchLatestBaileysVersion
-} from 'WhiskeySockets-locosyasociados'
+} from '@whiskeysockets/baileys'
 import pino from 'pino'
 import { start, handleMessages, loadPlugins } from './main.js'
 import readline from 'readline'
@@ -17,6 +17,10 @@ const question = (t) => new Promise(r => rl.question(t, r))
 
 const c = {
   reset: '\x1b[0m',
+  rojo: '\x1b[31m',
+  azul: '\x1b[34m',
+  verdeNeon: '\x1b[38;5;46m',
+  naranja: '\x1b[38;5;208m',
   morado: '\x1b[38;5;141m',
   verde: '\x1b[32m',
   celeste: '\x1b[36m',
@@ -28,33 +32,15 @@ const c = {
 }
 
 console.clear()
-console.log(`${c.pink}${c.bold}
-  ██╗████████╗███████╗██╗ ██╗██╗ ██╗██╗ ██╗
-  ██║╚══██╔══╝██╔════╝██║ ██║██║ ██╔╝██║ ███║
-  ██║ ██║ ███████╗██║ ██║█████╔╝ ██║ ██║
-  ██║ ██║ ╚════██║██║ ██║██╔═██╗ ██║ ██║
-  ██║ ██║ ███████║╚██████╔╝██║ ██╗██║ ██╗ ██║
-  ╚═╝ ╚═╝ ╚══════╝ ╚═════╝ ╚═╝ ╚═╝╚═╝ ╚═╝ ╚═╝${c.reset}`)
-console.log(`${c.pink} Master Clover - Powered by DamianJS-ofc${c.reset}\n`)
-
-function getWelcomeDB() {
-  if (!fs.existsSync('./db')) fs.mkdirSync('./db', { recursive: true })
-  if (!fs.existsSync('./db/welcome.json')) {
-    fs.writeFileSync('./db/welcome.json', '{}')
-    return {}
-  }
-  try {
-    return JSON.parse(fs.readFileSync('./db/welcome.json', 'utf-8'))
-  } catch {
-    return {}
-  }
-}
-
-function isWelcomeOn(groupId) {
-  const db = getWelcomeDB()
-  if (db[groupId] === undefined) return true
-  return db[groupId] !== false
-}
+// --- BANNER MASTER CLOVER CON COLORES ---
+console.log(`${c.rojo}${c.bold}  ███╗   ███╗ █████╗ ███████╗████████╗███████╗██████╗ ${c.reset}`)
+console.log(`${c.naranja}${c.bold}  ████╗ ████║██╔══██╗██╔════╝╚══██╔══╝██╔════╝██╔══██╗${c.reset}`)
+console.log(`${c.verdeNeon}${c.bold}  ██╔████╔██║███████║███████╗   ██║   █████╗  ██████╔╝${c.reset}`)
+console.log(`${c.azul}${c.bold}  ██║╚██╔╝██║██╔══██║╚════██║   ██║   ██╔══╝  ██╔══██╗${c.reset}`)
+console.log(`${c.rojo}${c.bold}  ██║ ╚═╝ ██║██║  ██║███████║   ██║   ███████╗██║  ██║${c.reset}`)
+console.log(`${c.naranja}${c.bold}  ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝${c.reset}`)
+console.log(`${c.verdeNeon}  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${c.reset}`)
+console.log(`${c.blanco}${c.bold}  🍀 MASTER CLOVER - Powered by 𐚁ᴅᴀᴍɪᴀɴᴊs-ᴏғᴄ${c.reset}\n`)
 
 function normalizePhone(input) {
   let s = String(input || '').replace(/\D/g, '')
@@ -245,76 +231,6 @@ async function startBot() {
     setTimeout(tryRequest, 2000)
   }
 
-  sock.ev.on('group-participants.update', async (anu) => {
-    try {
-      const { id, participants, action } = anu
-      if (action !== 'add' && action !== 'remove') return
-      if (!isWelcomeOn(id)) return
-
-      const meta = await sock.groupMetadata(id).catch(() => null)
-      const groupName = meta?.subject || 'este grupo'
-      const total = meta?.participants?.length || 0
-
-      const now = new Date()
-      const hora = now.toLocaleTimeString('es-AR', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      })
-      const fecha = now.toLocaleDateString('es-AR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      })
-
-      for (let raw of participants) {
-        const user = typeof raw === 'string' ? raw : raw.id || raw.jid || ''
-        if (!user) continue
-
-        let ppUrl = null
-        try {
-          ppUrl = await sock.profilePictureUrl(user, 'image')
-        } catch {
-          ppUrl = null
-        }
-        const fallback =
-          'https://raw.githubusercontent.com/starlyn-chann/Mistic-star/main/outl/1790152850509-GI88TJndzHvf.jpg'
-
-        if (action === 'add') {
-          const caption = `╭─ 🍀 𝙒𝙀𝙇𝘾𝙊𝙈𝙀 ──
-│ 👤 Usuario: @${user.split('@')[0]}
-│ 🏰 Grupo: ${groupName}
-│ 🕒 Entró: ${hora}
-│ 📅 Fecha: ${fecha}
-│ 👥 Total: ${total}
-╰──────────────`
-
-          await sock.sendMessage(id, {
-            image: { url: ppUrl || fallback },
-            caption,
-            mentions: [user]
-          })
-        }
-
-        if (action === 'remove') {
-          const caption = `╭─ 👋 𝙂𝙊𝘿𝘽𝙔𝙀 ──
-│ 👤 Usuario: @${user.split('@')[0]}
-│ 🏰 Grupo: ${groupName}
-│ Se fue, una hoja menos.
-╰──────────────`
-
-          await sock.sendMessage(id, {
-            image: { url: ppUrl || fallback },
-            caption,
-            mentions: [user]
-          })
-        }
-      }
-    } catch (e) {
-      console.log('ERROR WELCOME:', e)
-    }
-  })
-
   sock.ev.on('connection.update', async (update) => {
     const { qr, connection, lastDisconnect } = update
 
@@ -336,7 +252,10 @@ async function startBot() {
       waitingPairing = false
       pairingRequested = true
       pairingCodeShown = true
-      console.log(`${c.pink} ★ CONECTADO COMO MASTER CLOVER ★${c.reset}`)
+      console.log(`\n${c.verdeNeon}${c.bold} ★ CONECTADO COMO MASTER CLOVER ★${c.reset}`)
+      console.log(`${c.verdeNeon} 🍃 Core cargado${c.reset}`)
+      console.log(`${c.naranja} 🍁 Lib cargada${c.reset}`)
+      console.log(`${c.azul} 🚀 XD Bot listo${c.reset}\n`)
       try {
         rl.close()
       } catch {}
